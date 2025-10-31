@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Giriş Yap{% endblock %}
+{% block content %}
+<section class="auth">
+  <h2>Üretim Takip Sistemine Giriş</h2>
+  <form method="post" class="card">
+    <label for="username">Kullanıcı Adı</label>
+    <input id="username" name="username" type="text" required autofocus>
+
+    <label for="password">Şifre</label>
+    <input id="password" name="password" type="password" required>
+
+    <button type="submit" class="button primary">Giriş Yap</button>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}Kontrol Paneli{% endblock %}
+{% block content %}
+<section class="filters">
+  <form method="get" class="card inline">
+    <label for="date">Tarih Seçimi</label>
+    <input id="date" name="date" type="date" value="{{ selected_date }}" required>
+    <button type="submit" class="button">Göster</button>
+  </form>
+</section>
+
+<section class="entry-form">
+  <h2>Yeni Üretim Kaydı</h2>
+  <form method="post" class="card" id="production-form">
+    <div class="grid">
+      <div>
+        <label for="entry_date">Tarih</label>
+        <input id="entry_date" name="entry_date" type="date" value="{{ selected_date }}" required>
+      </div>
+      <div>
+        <label for="shift_number">Vardiya</label>
+        <select id="shift_number" name="shift_number" required>
+          {% for shift_number, info in shift_info.items() %}
+          <option value="{{ shift_number }}">{{ info.label }} ({{ info.start }} - {{ info.end }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="section_id">Bölüm</label>
+        <select id="section_id" name="section_id" required>
+          {% for section in sections %}
+          <option value="{{ section['id'] }}">{{ section['name'] }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="machine_id">Makine</label>
+        <select id="machine_id" name="machine_id" required></select>
+      </div>
+      <div>
+        <label for="diameter_mm">Borunun Çapı (mm)</label>
+        <select id="diameter_mm" name="diameter_mm" required>
+          {% for diameter, speed in diameter_speeds.items() %}
+          <option value="{{ diameter }}">{{ diameter }} mm ({{ speed }} m/dk)</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="produced_length">Üretilen Miktar (metre)</label>
+        <input id="produced_length" name="produced_length" type="number" min="0" step="0.01" required>
+      </div>
+      <div class="metric">
+        <span>Teorik Üretim</span>
+        <strong id="theoretical-output">0</strong>
+        <small>metre</small>
+      </div>
+      <div class="metric">
+        <span>Verimlilik</span>
+        <strong id="efficiency">0%</strong>
+      </div>
+    </div>
+    <label for="notes">Notlar</label>
+    <textarea id="notes" name="notes" rows="2" placeholder="Opsiyonel kısa notlar..."></textarea>
+    <button type="submit" class="button primary">Kaydı Ekle</button>
+  </form>
+</section>
+
+<section class="results">
+  <h2>{{ selected_date }} Tarihli Kayıtlar</h2>
+  {% for shift_number, info in shift_info.items() %}
+    <article class="card">
+      <header class="card-header">
+        <h3>{{ info.label }} — {{ info.start }} &rarr; {{ info.end }}</h3>
+      </header>
+      {% set entries = entries_by_shift.get(shift_number, []) %}
+      {% if entries %}
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Bölüm</th>
+              <th>Makine</th>
+              <th>Çap (mm)</th>
+              <th>Üretilen Miktar (m)</th>
+              <th>Teorik Üretim (m)</th>
+              <th>Verimlilik (%)</th>
+              <th>Not</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for entry in entries %}
+            <tr>
+              <td>{{ entry.section_name }}</td>
+              <td>{{ entry.machine_name }}</td>
+              <td>{{ entry.diameter_mm }}</td>
+              <td>{{ '%.2f'|format(entry.produced_length) }}</td>
+              <td>{{ '%.2f'|format(entry.theoretical_output) }}</td>
+              <td class="efficiency">{{ '%.1f'|format(entry.efficiency) }}</td>
+              <td>{{ entry.notes or '-' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        <p>Bu vardiya için henüz kayıt bulunmuyor.</p>
+      {% endif %}
+    </article>
+  {% endfor %}
+</section>
+
+<script>
+  const machinesBySection = {{ machines_by_section|tojson }};
+  const diameterSpeeds = {{ diameter_speeds|tojson }};
+  const activeMinutes = {{ active_minutes }};
+
+  function populateMachines() {
+    const sectionSelect = document.getElementById('section_id');
+    const machineSelect = document.getElementById('machine_id');
+    const sectionId = sectionSelect.value;
+    const machines = machinesBySection[sectionId] || [];
+
+    machineSelect.innerHTML = '';
+    if (machines.length === 0) {
+      const option = document.createElement('option');
+      option.value = '';
+      option.textContent = 'Makine tanımlı değil';
+      option.disabled = true;
+      option.selected = true;
+      machineSelect.appendChild(option);
+      machineSelect.disabled = true;
+    } else {
+      machineSelect.disabled = false;
+      machines.forEach(machine => {
+        const option = document.createElement('option');
+        option.value = machine.id;
+        option.textContent = machine.name;
+        machineSelect.appendChild(option);
+      });
+    }
+    updateCalculations();
+  }
+
+  function updateCalculations() {
+    const diameterSelect = document.getElementById('diameter_mm');
+    const producedInput = document.getElementById('produced_length');
+    const theoreticalOutputEl = document.getElementById('theoretical-output');
+    const efficiencyEl = document.getElementById('efficiency');
+
+    const diameter = diameterSelect.value;
+    const speed = diameterSpeeds[diameter] || 0;
+    const theoretical = speed * activeMinutes;
+    const produced = parseFloat(producedInput.value) || 0;
+    const efficiency = theoretical ? (produced / theoretical) * 100 : 0;
+
+    theoreticalOutputEl.textContent = theoretical.toFixed(2);
+    efficiencyEl.textContent = efficiency.toFixed(1) + '%';
+  }
+
+  document.getElementById('section_id').addEventListener('change', populateMachines);
+  document.getElementById('diameter_mm').addEventListener('change', updateCalculations);
+  document.getElementById('produced_length').addEventListener('input', updateCalculations);
+
+  populateMachines();
+  updateCalculations();
+</script>
+{% endblock %}
